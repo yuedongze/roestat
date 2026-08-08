@@ -116,8 +116,20 @@ func (m detailModel) tempSeries() []chartSeries {
 
 func (m detailModel) rorSeries() []chartSeries {
 	var ror []canvas.Float64Point
+	var samples []roest.Sample
 	for _, p := range m.points {
+		// Prefer the API's RoR; fall back to computing it from bean-temp deltas
+		// (the same 30s-window method the live view uses), since REST datapoints
+		// often come back with no RoR.
 		if v, ok := p.RoR(); ok {
+			ror = append(ror, canvas.Float64Point{X: float64(p.Msec) / 1000, Y: v})
+			continue
+		}
+		if p.BT == nil {
+			continue
+		}
+		samples = append(samples, roest.Sample{Msec: p.Msec, BT: *p.BT})
+		if v, ok := roest.RoR(samples, roest.DefaultRoRWindowSec); ok {
 			ror = append(ror, canvas.Float64Point{X: float64(p.Msec) / 1000, Y: v})
 		}
 	}
