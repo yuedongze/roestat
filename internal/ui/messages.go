@@ -30,6 +30,16 @@ type (
 		client  *roest.LiveClient
 		err     error
 	}
+	// backfillMsg carries the datapoints collected before the live view connected,
+	// so the chart can be seeded with the roast so far. gen echoes the live
+	// model's generation for the stale-view guard.
+	backfillMsg struct {
+		gen     int
+		machine roest.Machine
+		points  []roest.Datapoint
+		found   bool
+		err     error
+	}
 	liveDataMsg roest.LivePayload
 	tickMsg     time.Time
 )
@@ -63,6 +73,21 @@ func connectLive(m roest.Machine) tea.Cmd {
 	return func() tea.Msg {
 		lc, err := roest.ConnectLive(m)
 		return liveConnectedMsg{machine: m, client: lc, err: err}
+	}
+}
+
+// loadLiveBackfill finds the in-progress roast for a machine and fetches the
+// datapoints collected so far, so the live chart can be seeded before the MQTT
+// stream took over. A missing/finished roast or an empty curve is not an error;
+// the view simply stays live-only.
+func loadLiveBackfill(c *roest.Client, m roest.Machine, chargeUnix int64, gen int) tea.Cmd {
+	return func() tea.Msg {
+		log, found, err := c.FindActiveLog(m, chargeUnix)
+		if err != nil || !found {
+			return backfillMsg{gen: gen, machine: m, found: found, err: err}
+		}
+		pts, err := c.GetDatapoints(log.ID)
+		return backfillMsg{gen: gen, machine: m, points: pts, found: true, err: err}
 	}
 }
 

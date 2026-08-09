@@ -21,6 +21,20 @@ type chartSeries struct {
 	points []canvas.Float64Point
 }
 
+// chartOpts tunes an individual chart; zero value auto-fits the axes.
+type chartOpts struct {
+	yFloor *float64 // clamp the visible Y minimum to this value when set
+}
+
+// chartOption configures renderChart.
+type chartOption func(*chartOpts)
+
+// withYFloor clamps the chart's visible Y minimum, hiding anything below v (e.g.
+// floor at 0 to zoom in on the positive part of a curve).
+func withYFloor(v float64) chartOption {
+	return func(o *chartOpts) { o.yFloor = &v }
+}
+
 // elapsedLabel formats an X-axis value (elapsed seconds) as m:ss.
 func elapsedLabel(_ int, v float64) string {
 	s := max(int(v), 0)
@@ -31,9 +45,14 @@ func elapsedLabel(_ int, v float64) string {
 // series as a smooth braille curve, auto-fitting the axes to the data. It is
 // stateless: cheap enough to call once per redraw for the point counts a roast
 // produces (~1/sec, <1000 points).
-func renderChart(w, h int, series []chartSeries) string {
+func renderChart(w, h int, series []chartSeries, opts ...chartOption) string {
 	if w < 8 || h < 4 {
 		return ""
+	}
+
+	var cfg chartOpts
+	for _, o := range opts {
+		o(&cfg)
 	}
 
 	minX, maxX := 0.0, 1.0
@@ -64,6 +83,14 @@ func renderChart(w, h int, series []chartSeries) string {
 	pad := max((maxY-minY)*0.1, 1)
 	minY -= pad
 	maxY += pad
+	// Optionally clamp the visible floor (e.g. hide negative RoR) and keep a
+	// non-empty range if every point sits at/below the floor.
+	if cfg.yFloor != nil && minY < *cfg.yFloor {
+		minY = *cfg.yFloor
+		if maxY <= minY {
+			maxY = minY + 1
+		}
+	}
 	if maxX-minX < 1 {
 		maxX = minX + 1
 	}
@@ -77,6 +104,12 @@ func renderChart(w, h int, series []chartSeries) string {
 	)
 	c.AxisStyle = axisStyle
 	c.LabelStyle = labelStyle
+	// The chart auto-expands its Y range to fit pushed points; with a floor set
+	// that would drag the minimum back below it (e.g. down to a large negative
+	// RoR), so pin the minimum and let below-floor points clip instead.
+	if cfg.yFloor != nil {
+		c.AutoMinY = false
+	}
 	c.SetYRange(minY, maxY)
 	c.SetViewYRange(minY, maxY)
 	c.SetTimeRange(minT, maxT)

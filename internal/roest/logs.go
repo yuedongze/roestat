@@ -91,6 +91,69 @@ type logsEnvelope struct {
 	Results []Log   `json:"results"`
 }
 
+// activeLogMatchTolerance bounds how far an in-progress log's start may sit from
+// the live charge time before we consider it a match.
+const activeLogMatchTolerance = 120 * time.Second
+
+// FindActiveLog returns the in-progress log (EndTimestamp == nil) that best
+// matches the given machine and charge time, so the live view can backfill the
+// datapoints collected before it connected. found is false when nothing looks
+// like an active roast.
+//
+// The live payload carries no numeric log ID (and Log has no UUID), so we
+// correlate by start time: among unfinished logs on the newest page, we pick the
+// one whose StartTimestamp is closest to chargeUnix, preferring a matching
+// machine slug and falling back to the newest unfinished log.
+func (c *Client) FindActiveLog(m Machine, chargeUnix int64) (Log, bool, error) {
+	logs, _, err := c.GetLogsPage(1)
+	if err != nil {
+		return Log{}, false, err
+	}
+
+	charge := time.Unix(chargeUnix, 0)
+
+	// timed: closest unfinished log whose start is within tolerance of charge.
+	// fallback: newest unfinished log, used when no start time correlates.
+	timed, fallback := -1, -1
+	var bestDelta time.Duration
+	var fallbackStart time.Time
+	for i, l := range logs {
+		if l.EndTimestamp != nil { // finished roast
+			continue
+		}
+		start, hasStart := l.StartTime()
+
+		if chargeUnix > 0 && hasStart {
+			delta := start.Sub(charge)
+			if delta < 0 {
+				delta = -delta
+			}
+			if delta <= activeLogMatchTolerance {
+				// Keep the closest match, breaking ties toward this machine.
+				if timed < 0 || delta < bestDelta ||
+					(delta == bestDelta && l.MachineSlug == m.MachineID) {
+					timed, bestDelta = i, delta
+				}
+				continue
+			}
+		}
+
+		// Track the newest unfinished log as a fallback.
+		if fallback < 0 || (hasStart && start.After(fallbackStart)) {
+			fallback, fallbackStart = i, start
+		}
+	}
+
+	switch {
+	case timed >= 0:
+		return logs[timed], true, nil
+	case fallback >= 0:
+		return logs[fallback], true, nil
+	default:
+		return Log{}, false, nil
+	}
+}
+
 // GetLogsPage fetches one page (25 logs) of the customer's roast history.
 // page is 1-based; it reports whether a further page exists.
 func (c *Client) GetLogsPage(page int) (logs []Log, hasNext bool, err error) {

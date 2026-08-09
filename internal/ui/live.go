@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/NimbleMarkets/ntcharts/canvas"
@@ -28,6 +29,14 @@ type liveModel struct {
 	haveRoR bool
 	maxBT   float64
 
+	// Backfill of the roast so far, fetched over REST once the first live sample
+	// confirms a roast is running. gen guards against a slow fetch landing after
+	// the user navigated away; backfillMax is the newest backfilled Msec (-1 when
+	// none has been applied), used to dedup overlapping live samples.
+	gen               int
+	backfillRequested bool
+	backfillMax       int
+
 	w, h int
 }
 
@@ -46,6 +55,9 @@ func (m *liveModel) begin(machine roest.Machine) {
 	m.samples = nil
 	m.btPts, m.etPts, m.tgPts = nil, nil, nil
 	m.ror, m.haveRoR, m.maxBT = 0, false, 0
+	m.gen++
+	m.backfillRequested = false
+	m.backfillMax = -1
 }
 
 // stop closes the MQTT subscription.
@@ -58,6 +70,11 @@ func (m *liveModel) stop() {
 
 // ingest records a new live payload and recomputes derived series.
 func (m *liveModel) ingest(p roest.LivePayload) {
+	// Skip samples that fall inside the backfilled range so live data can't
+	// duplicate points the REST seed already covered.
+	if m.backfillMax >= 0 && p.Data.Msec <= m.backfillMax {
+		return
+	}
 	m.last = p
 	m.haveData = true
 	d := p.Data
@@ -70,6 +87,66 @@ func (m *liveModel) ingest(p roest.LivePayload) {
 		m.maxBT = d.BT
 	}
 	m.ror, m.haveRoR = roest.RoR(m.samples, roest.DefaultRoRWindowSec)
+}
+
+// applyBackfill seeds the chart with the datapoints collected before the live
+// view connected, merging them ahead of the live samples already plotted. It is
+// order-independent: the backfill owns the range it covers and the live stream
+// only keeps points newer than the newest backfilled Msec, so it works whether
+// this lands before or after the first live samples. A missing/empty backfill is
+// silent — the view simply stays live-only.
+func (m *liveModel) applyBackfill(msg backfillMsg) {
+	if msg.err != nil || !msg.found || len(msg.points) == 0 {
+		return
+	}
+
+	pts := append([]roest.Datapoint(nil), msg.points...)
+	sort.Slice(pts, func(i, j int) bool { return pts[i].Msec < pts[j].Msec })
+
+	var bt, et, tg []canvas.Float64Point
+	var samples []roest.Sample
+	backfillMax := 0
+	for _, p := range pts {
+		x := float64(p.Msec) / 1000
+		if p.BT != nil {
+			bt = append(bt, canvas.Float64Point{X: x, Y: *p.BT})
+			samples = append(samples, roest.Sample{Msec: p.Msec, BT: *p.BT})
+		}
+		if p.ET != nil {
+			et = append(et, canvas.Float64Point{X: x, Y: *p.ET})
+		}
+		if p.Target != nil {
+			tg = append(tg, canvas.Float64Point{X: x, Y: *p.Target})
+		}
+		if p.Msec > backfillMax {
+			backfillMax = p.Msec
+		}
+	}
+	m.backfillMax = backfillMax
+
+	// Drop any live samples that overlap the backfilled range, keeping only the
+	// tail newer than backfillMax. The four live slices are appended in lockstep,
+	// so a single cut index (found via samples) applies to all of them.
+	cut := len(m.samples)
+	for i, s := range m.samples {
+		if s.Msec > backfillMax {
+			cut = i
+			break
+		}
+	}
+	m.btPts = append(bt, m.btPts[cut:]...)
+	m.etPts = append(et, m.etPts[cut:]...)
+	m.tgPts = append(tg, m.tgPts[cut:]...)
+	m.samples = append(samples, m.samples[cut:]...)
+
+	m.maxBT = 0
+	for _, p := range m.btPts {
+		if p.Y > m.maxBT {
+			m.maxBT = p.Y
+		}
+	}
+	m.ror, m.haveRoR = roest.RoR(m.samples, roest.DefaultRoRWindowSec)
+	m.haveData = true
 }
 
 // phase returns the current roast phase from the latest event.
@@ -122,7 +199,7 @@ func (m liveModel) view() string {
 
 	gauges := statGrid([][2]string{
 		{"Time", fmt.Sprintf("%d:%02d", elapsed/60, elapsed%60)},
-		{"Phase", m.phase()},
+		{"Last event", m.phase()},
 		{"BT", fmt.Sprintf("%.1f°C", d.BT)},
 		{"ET", fmt.Sprintf("%.1f°C", d.ET)},
 		{"Target", fmt.Sprintf("%.1f°C", d.Target)},

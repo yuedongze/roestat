@@ -54,7 +54,8 @@ func (m detailModel) view() string {
 	rorH := chartH - tempH
 
 	tempChart := renderChart(m.w, tempH, m.tempSeries())
-	rorChart := renderChart(m.w, rorH, m.rorSeries())
+	// Zoom the RoR chart to its positive range; the negative tail is less useful.
+	rorChart := renderChart(m.w, rorH, m.rorSeries(), withYFloor(0))
 
 	legend := tempLegend() + "   " + legendRoRStyle.Render("■ RoR (°C/min)")
 

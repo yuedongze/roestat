@@ -15,7 +15,8 @@ live feed.
 
 - **Live view** — a real-time dashboard of the current roast: bean/environment
   temperature, target, Rate of Rise, heat/fan/drum, elapsed time and phase,
-  plus a live temperature curve.
+  plus a live temperature curve. If you open it mid-roast, the curve is
+  backfilled from the datapoints collected so far, then continues live.
 - **History view** — a browsable table of past roasts (batch, bean, date,
   duration, weight loss, first-crack temp) with lazy pagination.
 - **Roast detail** — select any past roast to see summary stats and its full

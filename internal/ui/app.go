@@ -97,10 +97,26 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, waitForLive(msg.client)
 
 	case liveDataMsg:
-		a.live.ingest(roest.LivePayload(msg))
+		p := roest.LivePayload(msg)
+		a.live.ingest(p)
+		var cmds []tea.Cmd
 		if a.live.live != nil {
-			return a, waitForLive(a.live.live)
+			cmds = append(cmds, waitForLive(a.live.live))
 		}
+		// The first live sample confirms a roast is running; seed the chart with
+		// the datapoints collected before we connected.
+		if !a.live.backfillRequested {
+			a.live.backfillRequested = true
+			cmds = append(cmds, loadLiveBackfill(a.client, a.live.machine, p.ChargeTimestamp, a.live.gen))
+		}
+		return a, tea.Batch(cmds...)
+
+	case backfillMsg:
+		// Ignore results for a roast the user has since navigated away from.
+		if a.state != viewLive || msg.gen != a.live.gen || msg.machine.ID != a.live.machine.ID {
+			return a, nil
+		}
+		a.live.applyBackfill(msg)
 		return a, nil
 
 	case tickMsg:
