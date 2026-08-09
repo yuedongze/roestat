@@ -10,6 +10,8 @@ var (
 	colorET     = lipgloss.Color("12")  // blue   — env temp
 	colorTarget = lipgloss.Color("2")   // green  — target
 	colorRoR    = lipgloss.Color("13")  // magenta — rate of rise
+	colorFan    = lipgloss.Color("45")  // cyan    — fan speed
+	colorPower  = lipgloss.Color("214") // amber   — heater power
 	colorDim    = lipgloss.Color("245") // muted grey
 	colorAxis   = lipgloss.Color("240")
 	colorLabel  = lipgloss.Color("244")
@@ -49,11 +51,15 @@ var (
 	etLineStyle     = lipgloss.NewStyle().Foreground(colorET)
 	targetLineStyle = lipgloss.NewStyle().Foreground(colorTarget)
 	rorLineStyle    = lipgloss.NewStyle().Foreground(colorRoR)
+	fanLineStyle    = lipgloss.NewStyle().Foreground(colorFan)
+	powerLineStyle  = lipgloss.NewStyle().Foreground(colorPower)
 
 	legendBTStyle     = lipgloss.NewStyle().Foreground(colorBT).Bold(true)
 	legendETStyle     = lipgloss.NewStyle().Foreground(colorET).Bold(true)
 	legendTargetStyle = lipgloss.NewStyle().Foreground(colorTarget).Bold(true)
 	legendRoRStyle    = lipgloss.NewStyle().Foreground(colorRoR).Bold(true)
+	legendFanStyle    = lipgloss.NewStyle().Foreground(colorFan).Bold(true)
+	legendPowerStyle  = lipgloss.NewStyle().Foreground(colorPower).Bold(true)
 
 	// Filled bar segments (dark text on a light background) and matching legend
 	// swatches (foreground-only) for the roast-phase breakdown.

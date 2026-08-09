@@ -48,24 +48,24 @@ func (m detailModel) view() string {
 	stats := m.statsBlock()
 	phaseSection := m.phaseBlock() // "" when phase boundaries aren't available
 
-	// Split remaining height between the temperature chart (upper, larger) and
-	// the RoR chart (lower). Reserve rows for the title, stats, legend, and the
-	// phase bar when shown.
-	reserved := lipgloss.Height(stats) + 4
+	// The top chart overlays temperature + RoR (dual axis) and gets the larger
+	// share; the bottom chart shows fan/power. Reserve rows for the title, stats,
+	// two legends, and the phase bar when shown.
+	reserved := lipgloss.Height(stats) + 5
 	if phaseSection != "" {
 		reserved += lipgloss.Height(phaseSection)
 	}
-	chartH := max(m.h-reserved, 6)
-	tempH := chartH * 2 / 3
-	rorH := chartH - tempH
+	chartH := max(m.h-reserved, 8)
+	topH := chartH * 2 / 3
+	botH := chartH - topH
 
-	tempChart := renderChart(m.w, tempH, m.tempSeries())
-	// Zoom the RoR chart to its positive range; the negative tail is less useful.
-	rorChart := renderChart(m.w, rorH, m.rorSeries(), withYFloor(0))
+	topLegend := tempLegend() + "   " + legendRoRStyle.Render("■ RoR ("+rorSuffix()+")")
+	botLegend := legendFanStyle.Render("■ Fan %") + "   " + legendPowerStyle.Render("■ Power %")
 
-	legend := tempLegend() + "   " + legendRoRStyle.Render("■ RoR ("+rorSuffix()+")")
+	topChart := renderRoRDual(m.w, topH, m.tempSeries(), m.rorData())
+	botChart := renderChart(m.w, botH, m.powerSeries(), withYFloor(0))
 
-	parts := []string{head, stats, legend, tempChart, rorChart}
+	parts := []string{head, stats, topLegend, topChart, botLegend, botChart}
 	if phaseSection != "" {
 		parts = append(parts, phaseSection)
 	}
@@ -129,13 +129,14 @@ func (m detailModel) tempSeries() []chartSeries {
 	}
 }
 
-func (m detailModel) rorSeries() []chartSeries {
+// rorData returns the RoR curve (°C/min) for overlaying on the temperature
+// chart. It prefers the API's RoR and falls back to computing it from bean-temp
+// deltas (the same 30s-window method the live view uses), since REST datapoints
+// often come back with no RoR.
+func (m detailModel) rorData() []canvas.Float64Point {
 	var ror []canvas.Float64Point
 	var samples []roest.Sample
 	for _, p := range m.points {
-		// Prefer the API's RoR; fall back to computing it from bean-temp deltas
-		// (the same 30s-window method the live view uses), since REST datapoints
-		// often come back with no RoR.
 		if v, ok := p.RoR(); ok {
 			ror = append(ror, canvas.Float64Point{X: float64(p.Msec) / 1000, Y: v})
 			continue
@@ -148,7 +149,25 @@ func (m detailModel) rorSeries() []chartSeries {
 			ror = append(ror, canvas.Float64Point{X: float64(p.Msec) / 1000, Y: v})
 		}
 	}
-	return []chartSeries{{name: "ror", style: rorLineStyle, points: ror, kind: valueRate}}
+	return ror
+}
+
+// powerSeries returns the fan-speed and heater-power curves (both percentages).
+func (m detailModel) powerSeries() []chartSeries {
+	var fan, power []canvas.Float64Point
+	for _, p := range m.points {
+		x := float64(p.Msec) / 1000
+		if p.Fan != nil {
+			fan = append(fan, canvas.Float64Point{X: x, Y: *p.Fan})
+		}
+		if p.Heat != nil {
+			power = append(power, canvas.Float64Point{X: x, Y: *p.Heat})
+		}
+	}
+	return []chartSeries{
+		{name: "fan", style: fanLineStyle, points: fan},
+		{name: "power", style: powerLineStyle, points: power},
+	}
 }
 
 func optTemp(v *float64) string {

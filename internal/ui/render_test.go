@@ -20,8 +20,11 @@ func syntheticRoast() []roest.Datapoint {
 		et := bt + 15
 		tg := bt + 5
 		ror := 60 * math.Exp(-float64(s)/300)
+		fan := 80 - 20*(float64(s)/600)
+		heat := 40 + 30*(float64(s)/600)
 		pts = append(pts, roest.Datapoint{
 			Msec: s * 1000, BT: ptr(bt), ET: ptr(et), Target: ptr(tg), RorFloat: ptr(ror),
+			Fan: ptr(fan), Heat: ptr(heat),
 		})
 	}
 	return pts
@@ -72,6 +75,7 @@ func TestRenderAllViews(t *testing.T) {
 	send(tea.KeyMsg{Type: tea.KeyEnter})
 	send(datapointsMsg{logID: 1, points: syntheticRoast()})
 	assertContains(t, "detail", m.View(), "Batch #1823", "BT", "RoR",
+		"Fan", "Power", // fan/power sub-chart
 		"Drying", "Maillard", "Development") // phase bar
 
 	// Back to history, then to the picker.

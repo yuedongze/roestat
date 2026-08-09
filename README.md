@@ -23,8 +23,9 @@ live feed.
 - **History view** — a browsable table of past roasts (batch, bean, date,
   duration, weight loss, first-crack temp) with lazy pagination.
 - **Roast detail** — select any past roast to see summary stats, a
-  drying/Maillard/development phase bar (duration and share of each), and its
-  full temperature and Rate-of-Rise curves.
+  drying/Maillard/development phase bar (duration and share of each), a
+  temperature chart with Rate of Rise overlaid on a second Y axis, and a
+  fan-speed/heater-power chart below it.
 
 Rate of Rise is computed client-side (over a 30s window), since the live feed
 doesn't include it. Temperatures show in °C by default; press `f` to switch
