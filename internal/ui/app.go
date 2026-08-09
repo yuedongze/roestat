@@ -135,6 +135,13 @@ func (a App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, tea.Quit
 	}
 
+	// Global C/F toggle, except while the picker's filter input is capturing keys.
+	if s := msg.String(); (s == "f" || s == "F") && !(a.state == viewPicker && a.picker.filtering()) {
+		toggleUnit()
+		a.history.rebuildRows()
+		return a, nil
+	}
+
 	switch a.state {
 	case viewHistory:
 		switch msg.String() {
@@ -234,16 +241,16 @@ func (a App) View() string {
 	switch a.state {
 	case viewHistory:
 		body = a.history.view()
-		help = "↑/↓ move · enter details · l live view · q quit"
+		help = "↑/↓ move · enter details · l live view · f °C/°F · q quit"
 	case viewDetail:
 		body = a.detail.view()
-		help = "esc back · q quit"
+		help = "esc back · f °C/°F · q quit"
 	case viewPicker:
 		body = a.picker.view()
-		help = "↑/↓ move · / filter · enter watch · esc back"
+		help = "↑/↓ move · / filter · enter watch · f °C/°F · esc back"
 	case viewLive:
 		body = a.live.view()
-		help = "esc back to picker · q quit"
+		help = "esc back to picker · f °C/°F · q quit"
 	}
 
 	title := titleStyle.Render("roestat") + lipgloss.NewStyle().Foreground(colorDim).Render("  ROEST roaster monitor")

@@ -63,7 +63,7 @@ func (m detailModel) view() string {
 	// Zoom the RoR chart to its positive range; the negative tail is less useful.
 	rorChart := renderChart(m.w, rorH, m.rorSeries(), withYFloor(0))
 
-	legend := tempLegend() + "   " + legendRoRStyle.Render("■ RoR (°C/min)")
+	legend := tempLegend() + "   " + legendRoRStyle.Render("■ RoR ("+rorSuffix()+")")
 
 	parts := []string{head, stats, legend, tempChart, rorChart}
 	if phaseSection != "" {
@@ -101,7 +101,7 @@ func (m detailModel) statsBlock() string {
 		{"Profile", m.log.Profile()},
 		{"Duration", dur},
 		{"Weight loss", loss},
-		{"Max BT", fmt.Sprintf("%.0f°C", maxBT)},
+		{"Max BT", fmt.Sprintf("%.0f%s", convTemp(maxBT), tempSuffix())},
 		{"FC", optTemp(m.log.FCTemp)},
 		{"End", optTemp(m.log.EndTemp)},
 	}
@@ -123,9 +123,9 @@ func (m detailModel) tempSeries() []chartSeries {
 		}
 	}
 	return []chartSeries{
-		{name: "target", style: targetLineStyle, points: tg},
-		{name: "et", style: etLineStyle, points: et},
-		{name: "bt", style: btLineStyle, points: bt},
+		{name: "target", style: targetLineStyle, points: tg, kind: valueTemp},
+		{name: "et", style: etLineStyle, points: et, kind: valueTemp},
+		{name: "bt", style: btLineStyle, points: bt, kind: valueTemp},
 	}
 }
 
@@ -148,12 +148,12 @@ func (m detailModel) rorSeries() []chartSeries {
 			ror = append(ror, canvas.Float64Point{X: float64(p.Msec) / 1000, Y: v})
 		}
 	}
-	return []chartSeries{{name: "ror", style: rorLineStyle, points: ror}}
+	return []chartSeries{{name: "ror", style: rorLineStyle, points: ror, kind: valueRate}}
 }
 
 func optTemp(v *float64) string {
 	if v == nil {
 		return "—"
 	}
-	return fmt.Sprintf("%.0f°C", *v)
+	return fmt.Sprintf("%.0f%s", convTemp(*v), tempSuffix())
 }

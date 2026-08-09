@@ -194,20 +194,20 @@ func (m liveModel) view() string {
 	elapsed := d.Msec / 1000
 	rorStr := "—"
 	if m.haveRoR {
-		rorStr = fmt.Sprintf("%+.1f", m.ror)
+		rorStr = fmt.Sprintf("%+.1f", convDelta(m.ror))
 	}
 
 	gauges := statGrid([][2]string{
 		{"Time", fmt.Sprintf("%d:%02d", elapsed/60, elapsed%60)},
 		{"Last event", m.phase()},
-		{"BT", fmt.Sprintf("%.1f°C", d.BT)},
-		{"ET", fmt.Sprintf("%.1f°C", d.ET)},
-		{"Target", fmt.Sprintf("%.1f°C", d.Target)},
-		{"RoR", rorStr + "°C/min"},
+		{"BT", fmt.Sprintf("%.1f%s", convTemp(d.BT), tempSuffix())},
+		{"ET", fmt.Sprintf("%.1f%s", convTemp(d.ET), tempSuffix())},
+		{"Target", fmt.Sprintf("%.1f%s", convTemp(d.Target), tempSuffix())},
+		{"RoR", rorStr + rorSuffix()},
 		{"Heat", fmt.Sprintf("%.0f%%", d.Heat)},
 		{"Fan", fmt.Sprintf("%.0f%%", d.Fan)},
 		{"Drum", fmt.Sprintf("%.0f rpm", d.RPM)},
-		{"Max BT", fmt.Sprintf("%.0f°C", m.maxBT)},
+		{"Max BT", fmt.Sprintf("%.0f%s", convTemp(m.maxBT), tempSuffix())},
 	}, 5)
 
 	legend := tempLegend()
@@ -219,9 +219,9 @@ func (m liveModel) view() string {
 	}
 	chartH := max(m.h-reserved, 6)
 	chart := renderChart(m.w, chartH, []chartSeries{
-		{name: "target", style: targetLineStyle, points: m.tgPts},
-		{name: "et", style: etLineStyle, points: m.etPts},
-		{name: "bt", style: btLineStyle, points: m.btPts},
+		{name: "target", style: targetLineStyle, points: m.tgPts, kind: valueTemp},
+		{name: "et", style: etLineStyle, points: m.etPts, kind: valueTemp},
+		{name: "bt", style: btLineStyle, points: m.btPts, kind: valueTemp},
 	})
 
 	parts := []string{head, gauges, legend, chart}

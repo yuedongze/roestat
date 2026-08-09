@@ -14,11 +14,34 @@ import (
 // chartBase + X seconds, so the axis float value equals elapsed seconds.
 var chartBase = time.Unix(0, 0).UTC()
 
-// chartSeries is one named line to draw (X = elapsed seconds, Y = value).
+// valueKind tells renderChart how to unit-convert a series' Y values: raw (no
+// conversion), an absolute temperature, or a temperature rate (RoR).
+type valueKind int
+
+const (
+	valueRaw valueKind = iota
+	valueTemp
+	valueRate
+)
+
+// chartSeries is one named line to draw (X = elapsed seconds, Y = value in °C).
 type chartSeries struct {
 	name   string
 	style  lipgloss.Style
 	points []canvas.Float64Point
+	kind   valueKind
+}
+
+// convValue applies the current unit to a series value according to its kind.
+func (s chartSeries) convValue(y float64) float64 {
+	switch s.kind {
+	case valueTemp:
+		return convTemp(y)
+	case valueRate:
+		return convDelta(y)
+	default:
+		return y
+	}
 }
 
 // chartOpts tunes an individual chart; zero value auto-fits the axes.
@@ -60,15 +83,16 @@ func renderChart(w, h int, series []chartSeries, opts ...chartOption) string {
 	seen := false
 	for _, s := range series {
 		for _, p := range s.points {
+			y := s.convValue(p.Y)
 			if !seen {
-				minX, maxX, minY, maxY = p.X, p.X, p.Y, p.Y
+				minX, maxX, minY, maxY = p.X, p.X, y, y
 				seen = true
 				continue
 			}
 			minX = min(minX, p.X)
 			maxX = max(maxX, p.X)
-			minY = min(minY, p.Y)
-			maxY = max(maxY, p.Y)
+			minY = min(minY, y)
+			maxY = max(maxY, y)
 		}
 	}
 	if !seen {
@@ -123,7 +147,7 @@ func renderChart(w, h int, series []chartSeries, opts ...chartOption) string {
 		for _, p := range s.points {
 			c.PushDataSet(s.name, timeserieslinechart.TimePoint{
 				Time:  chartBase.Add(time.Duration(p.X) * time.Second),
-				Value: p.Y,
+				Value: s.convValue(p.Y),
 			})
 		}
 	}

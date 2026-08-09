@@ -69,6 +69,17 @@ func (m *historyModel) addLogs(logs []roest.Log, page int, hasNext bool) {
 	m.hasNext = hasNext
 	m.loading = false
 	m.loadingMore = false
+	m.rebuildRows()
+}
+
+// rebuildRows regenerates the table rows and unit-dependent column header from
+// the loaded logs. Called on new pages and when the C/F unit is toggled.
+func (m *historyModel) rebuildRows() {
+	cols := m.table.Columns()
+	if len(cols) > 0 {
+		cols[len(cols)-1].Title = "FC " + tempSuffix()
+		m.table.SetColumns(cols)
+	}
 
 	rows := make([]table.Row, len(m.logs))
 	for i, l := range m.logs {
@@ -86,7 +97,7 @@ func (m *historyModel) addLogs(logs []roest.Log, page int, hasNext bool) {
 		}
 		fc := "—"
 		if l.FCTemp != nil {
-			fc = fmt.Sprintf("%.0f", *l.FCTemp)
+			fc = fmt.Sprintf("%.0f", convTemp(*l.FCTemp))
 		}
 		rows[i] = table.Row{
 			strconv.Itoa(l.BatchNo),

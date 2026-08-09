@@ -27,7 +27,8 @@ live feed.
   full temperature and Rate-of-Rise curves.
 
 Rate of Rise is computed client-side (over a 30s window), since the live feed
-doesn't include it.
+doesn't include it. Temperatures show in °C by default; press `f` to switch
+every gauge, chart, and table between °C and °F.
 
 ## Install
 
@@ -76,6 +77,7 @@ Keybindings:
 | `enter`    | Open roast details (history)            |
 | `l`        | Open the live view (pick a machine)     |
 | `/`        | Filter machines (in the picker)         |
+| `f`        | Toggle temperatures between °C and °F    |
 | `esc`      | Back                                    |
 | `q`        | Quit                                    |
 
