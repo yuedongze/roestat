@@ -13,6 +13,12 @@ var (
 	colorDim    = lipgloss.Color("245") // muted grey
 	colorAxis   = lipgloss.Color("240")
 	colorLabel  = lipgloss.Color("244")
+
+	// Roast-phase bar: soft green → pale yellow → tan, mirroring the web app.
+	colorPhaseDrying      = lipgloss.Color("150") // green  — drying
+	colorPhaseMaillard    = lipgloss.Color("229") // yellow — Maillard
+	colorPhaseDevelopment = lipgloss.Color("180") // tan    — development
+	colorPhaseText        = lipgloss.Color("235") // dark ink on the light segments
 )
 
 var (
@@ -48,4 +54,17 @@ var (
 	legendETStyle     = lipgloss.NewStyle().Foreground(colorET).Bold(true)
 	legendTargetStyle = lipgloss.NewStyle().Foreground(colorTarget).Bold(true)
 	legendRoRStyle    = lipgloss.NewStyle().Foreground(colorRoR).Bold(true)
+
+	// Filled bar segments (dark text on a light background) and matching legend
+	// swatches (foreground-only) for the roast-phase breakdown.
+	phaseSegStyles = []lipgloss.Style{
+		lipgloss.NewStyle().Background(colorPhaseDrying).Foreground(colorPhaseText),
+		lipgloss.NewStyle().Background(colorPhaseMaillard).Foreground(colorPhaseText),
+		lipgloss.NewStyle().Background(colorPhaseDevelopment).Foreground(colorPhaseText),
+	}
+	phaseLegendStyles = []lipgloss.Style{
+		lipgloss.NewStyle().Foreground(colorPhaseDrying).Bold(true),
+		lipgloss.NewStyle().Foreground(colorPhaseMaillard).Bold(true),
+		lipgloss.NewStyle().Foreground(colorPhaseDevelopment).Bold(true),
+	}
 )

@@ -211,12 +211,32 @@ func (m liveModel) view() string {
 	}, 5)
 
 	legend := tempLegend()
-	chartH := max(m.h-lipgloss.Height(gauges)-4, 6)
+	phaseSection := m.phaseBlock() // "" until the roast has an elapsed time
+
+	reserved := lipgloss.Height(gauges) + 4
+	if phaseSection != "" {
+		reserved += lipgloss.Height(phaseSection)
+	}
+	chartH := max(m.h-reserved, 6)
 	chart := renderChart(m.w, chartH, []chartSeries{
 		{name: "target", style: targetLineStyle, points: m.tgPts},
 		{name: "et", style: etLineStyle, points: m.etPts},
 		{name: "bt", style: btLineStyle, points: m.btPts},
 	})
 
-	return strings.Join([]string{head, gauges, legend, chart}, "\n")
+	parts := []string{head, gauges, legend, chart}
+	if phaseSection != "" {
+		parts = append(parts, phaseSection)
+	}
+	return strings.Join(parts, "\n")
+}
+
+// phaseBlock renders the growing Drying/Maillard/Development bar with its legend,
+// or "" when there's no elapsed roast time yet.
+func (m liveModel) phaseBlock() string {
+	phases, ok := roest.LivePhases(m.last.Events, m.last.Data.Msec)
+	if !ok {
+		return ""
+	}
+	return phaseLegend() + "\n" + phaseBar(m.w, phases)
 }

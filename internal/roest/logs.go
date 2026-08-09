@@ -13,6 +13,21 @@ type ProfileData struct {
 	Name string `json:"name"`
 }
 
+// LogEvent is a roast milestone recorded on a log, in elapsed msec from charge
+// (type 0 = charge, 1 = drop, 4 = dry end, 5 = first crack).
+type LogEvent struct {
+	Msec int `json:"msec"`
+	Type int `json:"type"`
+}
+
+// RoastPhase is one segment of a roast: Drying (charge→dry end), Maillard (dry
+// end→first crack) or Development (first crack→drop).
+type RoastPhase struct {
+	Name     string
+	Duration time.Duration
+	Fraction float64 // share of the total roast time (charge→drop)
+}
+
 // Log is a single roast-session record. Optional fields are pointers because
 // the API returns them as null for incomplete or unnamed roasts.
 type Log struct {
@@ -22,6 +37,10 @@ type Log struct {
 	MachineSlug    string       `json:"machine_slug"`
 	StartTimestamp *string      `json:"start_timestamp"`
 	EndTimestamp   *string      `json:"end_timestamp"`
+	DropTimestamp  *string      `json:"drop_timestamp"`
+	DryEndMsec     *int         `json:"dryend_event_msec"`
+	FirstCrackMsec *int         `json:"firstcrack_event_msec"`
+	Events         []LogEvent   `json:"events"`
 	StartWeight    *float64     `json:"start_weight"`
 	EndWeight      *float64     `json:"end_weight"`
 	FCTemp         *float64     `json:"fc_temp"`
@@ -64,6 +83,93 @@ func (l Log) Duration() (time.Duration, bool) {
 		return 0, false
 	}
 	return end.Sub(start), true
+}
+
+// Phases splits the roast into Drying / Maillard / Development segments with
+// their durations and shares of total roast time. ok is false when the boundary
+// events (dry end, first crack, drop) aren't all available or aren't ordered.
+func (l Log) Phases() ([]RoastPhase, bool) {
+	dryEnd, ok1 := l.eventMsec(4, l.DryEndMsec)
+	firstCrack, ok2 := l.eventMsec(5, l.FirstCrackMsec)
+	drop, ok3 := l.dropMsec()
+	if !ok1 || !ok2 || !ok3 {
+		return nil, false
+	}
+	// Boundaries must be strictly increasing for the segments to make sense.
+	if dryEnd <= 0 || firstCrack <= dryEnd || drop <= firstCrack {
+		return nil, false
+	}
+	return buildPhases(dryEnd, firstCrack, drop, true, true)
+}
+
+// buildPhases assembles the ordered Drying/Maillard/Development segments that
+// have occurred by time end, using end as the denominator for the fractions.
+// Milestones that haven't happened (or fall at/after end) are omitted, so a
+// roast still in its drying phase yields a single growing segment. ok is false
+// only when end is non-positive.
+func buildPhases(dryEnd, firstCrack, end int, haveDryEnd, haveFirstCrack bool) ([]RoastPhase, bool) {
+	if end <= 0 {
+		return nil, false
+	}
+	type bound struct {
+		name  string
+		start int
+	}
+	bounds := []bound{{"Drying", 0}}
+	if haveDryEnd && dryEnd > 0 && dryEnd < end {
+		bounds = append(bounds, bound{"Maillard", dryEnd})
+	}
+	if haveFirstCrack && firstCrack < end && firstCrack > bounds[len(bounds)-1].start {
+		bounds = append(bounds, bound{"Development", firstCrack})
+	}
+
+	total := float64(end)
+	phases := make([]RoastPhase, len(bounds))
+	for i, b := range bounds {
+		to := end
+		if i+1 < len(bounds) {
+			to = bounds[i+1].start
+		}
+		phases[i] = RoastPhase{
+			Name:     b.name,
+			Duration: time.Duration(to-b.start) * time.Millisecond,
+			Fraction: float64(to-b.start) / total,
+		}
+	}
+	return phases, true
+}
+
+// eventMsec returns the elapsed-msec of an event, preferring the dedicated log
+// field and falling back to the events array.
+func (l Log) eventMsec(typ int, direct *int) (int, bool) {
+	if direct != nil && *direct > 0 {
+		return *direct, true
+	}
+	for _, e := range l.Events {
+		if e.Type == typ && e.Msec > 0 {
+			return e.Msec, true
+		}
+	}
+	return 0, false
+}
+
+// dropMsec returns the drop time (total roast length) in elapsed msec, from the
+// drop event, else the drop timestamp, else the overall duration.
+func (l Log) dropMsec() (int, bool) {
+	for _, e := range l.Events {
+		if e.Type == 1 && e.Msec > 0 {
+			return e.Msec, true
+		}
+	}
+	if start, ok := parseTS(l.StartTimestamp); ok {
+		if drop, ok := parseTS(l.DropTimestamp); ok {
+			return int(drop.Sub(start).Milliseconds()), true
+		}
+	}
+	if d, ok := l.Duration(); ok {
+		return int(d.Milliseconds()), true
+	}
+	return 0, false
 }
 
 // WeightLossPct is the roast weight loss as a percentage.

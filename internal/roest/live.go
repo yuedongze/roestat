@@ -19,6 +19,31 @@ type LiveEvent struct {
 	Type int `json:"type"`
 }
 
+// LivePhases builds the roast-phase breakdown for a roast in progress from the
+// live event list and the current elapsed time. Unlike Log.Phases it is lenient:
+// it returns only the phases reached so far, with the current phase running up to
+// nowMsec (or the drop event, once dropped), so the bar grows as the roast
+// advances. ok is false before any elapsed time exists.
+func LivePhases(events []LiveEvent, nowMsec int) ([]RoastPhase, bool) {
+	dryEnd, haveDry := liveEventMsec(events, 4)
+	firstCrack, haveFC := liveEventMsec(events, 5)
+	end := nowMsec
+	if drop, ok := liveEventMsec(events, 1); ok && drop > 0 {
+		end = drop
+	}
+	return buildPhases(dryEnd, firstCrack, end, haveDry, haveFC)
+}
+
+// liveEventMsec returns the elapsed-msec of the first event of the given type.
+func liveEventMsec(events []LiveEvent, typ int) (int, bool) {
+	for _, e := range events {
+		if e.Type == typ {
+			return e.Msec, true
+		}
+	}
+	return 0, false
+}
+
 // SensorReading is one raw sensor value from the temperature_sensors array.
 type SensorReading struct {
 	Name  string  `json:"name"`

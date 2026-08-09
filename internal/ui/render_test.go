@@ -30,9 +30,17 @@ func syntheticRoast() []roest.Datapoint {
 func liveDataAt(i int) liveDataMsg {
 	sec := i
 	bt := 90 + 1.5*float64(i)
+	// Events accumulate as the roast passes milestones, so the phase bar grows.
+	events := []roest.LiveEvent{{Msec: 0, Type: 0}} // charge
+	if i >= 10 {
+		events = append(events, roest.LiveEvent{Msec: 10000, Type: 4}) // dry end
+	}
+	if i >= 25 {
+		events = append(events, roest.LiveEvent{Msec: 25000, Type: 5}) // first crack
+	}
 	return liveDataMsg(roest.LivePayload{
 		BatchUUID: "999", ProfileID: "565318",
-		Events: []roest.LiveEvent{{Msec: 0, Type: 0}},
+		Events: events,
 		Data: roest.LiveData{
 			Msec: sec * 1000, BT: bt, ET: bt + 12, Target: bt + 4,
 			Fan: 81, Heat: 51, RPM: 60,
@@ -52,7 +60,8 @@ func TestRenderAllViews(t *testing.T) {
 	send(logsPageMsg{
 		logs: []roest.Log{
 			{ID: 1, BatchNo: 1823, BeanName: &bean, StartWeight: ptr(600.0), EndWeight: ptr(510.0),
-				FCTemp: ptr(196.0), StartTimestamp: ptr("2026-08-08T10:00:00Z"), EndTimestamp: ptr("2026-08-08T10:11:00Z")},
+				FCTemp: ptr(196.0), StartTimestamp: ptr("2026-08-08T10:00:00Z"), EndTimestamp: ptr("2026-08-08T10:11:00Z"),
+				DryEndMsec: ptr(305000), FirstCrackMsec: ptr(530000)},
 			{ID: 2, BatchNo: 1824},
 		},
 		page: 1, hasNext: true,
@@ -62,7 +71,8 @@ func TestRenderAllViews(t *testing.T) {
 	// Detail view.
 	send(tea.KeyMsg{Type: tea.KeyEnter})
 	send(datapointsMsg{logID: 1, points: syntheticRoast()})
-	assertContains(t, "detail", m.View(), "Batch #1823", "BT", "RoR")
+	assertContains(t, "detail", m.View(), "Batch #1823", "BT", "RoR",
+		"Drying", "Maillard", "Development") // phase bar
 
 	// Back to history, then to the picker.
 	send(tea.KeyMsg{Type: tea.KeyEsc})
@@ -76,7 +86,8 @@ func TestRenderAllViews(t *testing.T) {
 	for i := range 40 {
 		send(liveDataAt(i))
 	}
-	assertContains(t, "live", m.View(), "LIVE", "Neset", "BT")
+	assertContains(t, "live", m.View(), "LIVE", "Neset", "BT",
+		"Drying", "Maillard", "Development") // growing phase bar
 
 	t.Logf("\n%s", m.View()) // visible with -v
 }

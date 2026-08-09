@@ -8,19 +8,23 @@ your terminal.
 and talks to the ROEST cloud API: REST for history, MQTT-over-WebSocket for the
 live feed.
 
+![roestat in action — live roast dashboard and roast history](roestat.gif)
+
 > **Unofficial.** This project is not affiliated with or endorsed by ROEST. It
 > uses ROEST's cloud API, which is undocumented and may change at any time.
 
 ## Features
 
 - **Live view** — a real-time dashboard of the current roast: bean/environment
-  temperature, target, Rate of Rise, heat/fan/drum, elapsed time and phase,
-  plus a live temperature curve. If you open it mid-roast, the curve is
-  backfilled from the datapoints collected so far, then continues live.
+  temperature, target, Rate of Rise, heat/fan/drum, elapsed time and last event,
+  a live temperature curve, and a drying/Maillard/development phase bar that
+  grows as the roast advances. If you open it mid-roast, the curve is backfilled
+  from the datapoints collected so far, then continues live.
 - **History view** — a browsable table of past roasts (batch, bean, date,
   duration, weight loss, first-crack temp) with lazy pagination.
-- **Roast detail** — select any past roast to see summary stats and its full
-  temperature and Rate-of-Rise curves.
+- **Roast detail** — select any past roast to see summary stats, a
+  drying/Maillard/development phase bar (duration and share of each), and its
+  full temperature and Rate-of-Rise curves.
 
 Rate of Rise is computed client-side (over a 30s window), since the live feed
 doesn't include it.

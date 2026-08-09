@@ -46,10 +46,16 @@ func (m detailModel) view() string {
 	}
 
 	stats := m.statsBlock()
+	phaseSection := m.phaseBlock() // "" when phase boundaries aren't available
 
 	// Split remaining height between the temperature chart (upper, larger) and
-	// the RoR chart (lower). Reserve rows for the title, stats, and legend.
-	chartH := max(m.h-lipgloss.Height(stats)-4, 6)
+	// the RoR chart (lower). Reserve rows for the title, stats, legend, and the
+	// phase bar when shown.
+	reserved := lipgloss.Height(stats) + 4
+	if phaseSection != "" {
+		reserved += lipgloss.Height(phaseSection)
+	}
+	chartH := max(m.h-reserved, 6)
 	tempH := chartH * 2 / 3
 	rorH := chartH - tempH
 
@@ -59,13 +65,21 @@ func (m detailModel) view() string {
 
 	legend := tempLegend() + "   " + legendRoRStyle.Render("■ RoR (°C/min)")
 
-	return strings.Join([]string{
-		head,
-		stats,
-		legend,
-		tempChart,
-		rorChart,
-	}, "\n")
+	parts := []string{head, stats, legend, tempChart, rorChart}
+	if phaseSection != "" {
+		parts = append(parts, phaseSection)
+	}
+	return strings.Join(parts, "\n")
+}
+
+// phaseBlock renders the Drying/Maillard/Development bar with its legend, or ""
+// when the roast's phase boundaries aren't available.
+func (m detailModel) phaseBlock() string {
+	phases, ok := m.log.Phases()
+	if !ok {
+		return ""
+	}
+	return phaseLegend() + "\n" + phaseBar(m.w, phases)
 }
 
 func (m detailModel) statsBlock() string {
