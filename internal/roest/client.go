@@ -77,7 +77,10 @@ func resolveCustomerID(c *Client) (int, error) {
 		} `json:"customers"`
 	}
 	var u user
-	if err := json.Unmarshal(body, &u); err != nil {
+	// A direct unmarshal succeeds-but-empty when the API wraps the user in a
+	// list/pagination envelope (unknown keys are ignored), so fall through on an
+	// empty Customers slice too, not just on a decode error.
+	if err := json.Unmarshal(body, &u); err != nil || len(u.Customers) == 0 {
 		var list []user
 		if err2 := json.Unmarshal(body, &list); err2 == nil && len(list) > 0 {
 			u = list[0]
